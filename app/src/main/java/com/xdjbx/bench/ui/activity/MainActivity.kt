@@ -9,62 +9,35 @@ import android.os.Bundle
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.content.ContextCompat
+import androidx.viewpager2.widget.ViewPager2
+import com.xdjbx.bench.ui.adapter.BenchPagerAdapter
+import com.xdjbx.bench.ui.fragment.BlueToothFragment
+import com.xdjbx.bench.ui.fragment.SensorsFragment
 import com.xdjbx.sensors.R
+import com.xdjbx.sensors.databinding.ActivityMainBinding
 
-class MainActivity : AppCompatActivity(), SensorEventListener {
+class MainActivity : AppCompatActivity() {
 
-    private lateinit var sensorManager: SensorManager
-    private lateinit var square: TextView
+    private lateinit var binding: ActivityMainBinding
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
+
+        val viewPager = binding.viewPagerMain
+
+        val benchPagerAdapter = BenchPagerAdapter(supportFragmentManager, lifecycle)
+        benchPagerAdapter.addFragment(SensorsFragment())
+        benchPagerAdapter.addFragment(BlueToothFragment())
+
+        viewPager.orientation = ViewPager2.ORIENTATION_HORIZONTAL
+        viewPager.adapter = benchPagerAdapter
 
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-        square = findViewById(R.id.tv_square)
 
-        setupSensorStuff()
-    }
-
-    private fun setupSensorStuff() {
-        sensorManager = getSystemService(SENSOR_SERVICE) as SensorManager
-        sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER).also {
-            sensorManager.registerListener(this, it,
-                SensorManager.SENSOR_DELAY_FASTEST,
-                SensorManager.SENSOR_DELAY_FASTEST
-            )
-        }
-    }
-
-    override fun onSensorChanged(event: SensorEvent?) {
-        if (event?.sensor?.type == Sensor.TYPE_ACCELEROMETER) {
-            val horizontal = event.values[0]
-            val vertical = event.values[1]
-            val zAxis = event.values[2]
-
-            square.apply {
-                rotationX = vertical * 3F
-                rotationY = horizontal * 3F
-                rotation = -horizontal
-                translationX = horizontal * -10
-                translationY = vertical * 10
-            }
-
-            val color = if (horizontal.toInt() == 0 && vertical.toInt() == 0) Color.GREEN else Color.RED
-            square.setBackgroundColor(color)
-
-            square.text = "Vertical ${vertical.toInt()}\nHorizontal ${horizontal.toInt()} \n" +
-                    "Z-Axis ${zAxis.toInt()} "
-        }
-    }
-
-    override fun onAccuracyChanged(p0: Sensor?, p1: Int) {
-        return
-    }
-
-    override fun onDestroy() {
-        sensorManager.unregisterListener(this)
-        super.onDestroy()
     }
 
 }
