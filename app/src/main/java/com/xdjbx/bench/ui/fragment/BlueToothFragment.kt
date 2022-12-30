@@ -15,6 +15,7 @@ import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.xdjbx.bench.ui.adapter.BluetoothListAdapter
 import com.xdjbx.sensors.R
 import kotlinx.android.synthetic.main.fragment_blue_tooth.*
 import kotlinx.android.synthetic.main.fragment_blue_tooth.view.*
@@ -36,7 +37,7 @@ class BlueToothFragment : Fragment() {
 
     // Declare constants for the permissions request code and the permissions to request
     private val REQUEST_CODE_BLUETOOTH_PERMISSIONS = 1
-    private val REQUIRED_BLUETOOTH_PERMISSIONS = arrayOf(Manifest.permission.BLUETOOTH, Manifest.permission.BLUETOOTH_ADMIN, Manifest.permission.BLUETOOTH_CONNECT)
+    private val REQUIRED_BLUETOOTH_PERMISSIONS = mutableListOf<String>()
 
     // Declare a BluetoothAdapter and a list of BluetoothDevice objects
     private var bluetoothAdapter: BluetoothAdapter? = null
@@ -48,6 +49,11 @@ class BlueToothFragment : Fragment() {
             param1 = it.getString(ARG_PARAM1)
             param2 = it.getString(ARG_PARAM2)
         }
+
+        // TODO - add API version code
+        REQUIRED_BLUETOOTH_PERMISSIONS.add(Manifest.permission.BLUETOOTH)
+        REQUIRED_BLUETOOTH_PERMISSIONS.add(Manifest.permission.BLUETOOTH_ADMIN)
+        REQUIRED_BLUETOOTH_PERMISSIONS.add(Manifest.permission.BLUETOOTH_CONNECT)
     }
 
     override fun onCreateView(
@@ -74,7 +80,6 @@ class BlueToothFragment : Fragment() {
         }
     }
 
-
     // Function to check if the app has the required Bluetooth permissions
     private fun hasBluetoothPermissions(): Boolean {
         return REQUIRED_BLUETOOTH_PERMISSIONS.all { permission ->
@@ -84,24 +89,32 @@ class BlueToothFragment : Fragment() {
 
     @SuppressLint("MissingPermission") // Permission already granted
     fun getBluetoothList(): List<BluetoothDevice> {
-        // Initialize the BluetoothAdapter
         // TODO - fix deprecation
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
 
-// Get the list of paired devices
+        // Get the list of paired devices
         return bluetoothAdapter?.bondedDevices?.toMutableList() ?: mutableListOf()
     }
 
     fun loadBluetoothList() {
         pairedDevices = getBluetoothList()
-        showBluetoothList()
+        showBluetoothList(pairedDevices)
     }
 
-    fun showBluetoothList() {
-        val adapter = ArrayAdapter(this.activity as Context, android.R.layout.simple_list_item_1, pairedDevices)
-        bluetoothListView.adapter = adapter
+    // TODO - build in permission check for bluetoothAdapter.bondedDevices below
+
+    @SuppressLint("MissingPermission")
+    fun checkBluetoothConnection(): Boolean {
+        val bluetoothAdapter = BluetoothAdapter.getDefaultAdapter()
+        return bluetoothAdapter.isEnabled && bluetoothAdapter.bondedDevices.isNotEmpty()
     }
 
+    private fun showBluetoothList(pairedDevices: List<BluetoothDevice>) {
+        this.activity?.let { context ->
+            val btAdapter = BluetoothListAdapter(context, pairedDevices)
+            bluetoothListView.adapter = btAdapter
+        }
+    }
 
     // Function to request the required Bluetooth permissions
     private fun requestBluetoothPermissions() {
@@ -111,7 +124,8 @@ class BlueToothFragment : Fragment() {
 // Show a message explaining why the permissions are needed
 // (e.g. "These permissions are needed to connect to Bluetooth devices")
             }
-            ActivityCompat.requestPermissions(activity, REQUIRED_BLUETOOTH_PERMISSIONS, REQUEST_CODE_BLUETOOTH_PERMISSIONS)
+            ActivityCompat.requestPermissions(activity,
+                REQUIRED_BLUETOOTH_PERMISSIONS.toTypedArray(), REQUEST_CODE_BLUETOOTH_PERMISSIONS)
         }
 
     }
@@ -132,8 +146,6 @@ class BlueToothFragment : Fragment() {
             super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         }
     }
-
-
 
     companion object {
         /**
