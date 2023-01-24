@@ -5,16 +5,21 @@ import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.fragment.app.Fragment
+import com.xdjbx.bench.domain.DeviceAction
+import com.xdjbx.bench.domain.interfaces.BluetoothUpdateObserver
+import com.xdjbx.bench.notification.LocalNotificationManager
+import com.xdjbx.bench.ui.GeneralBroadcastReceiver
 import com.xdjbx.bench.ui.adapter.BluetoothListAdapter
 import com.xdjbx.sensors.R
 import kotlinx.android.synthetic.main.fragment_blue_tooth.*
@@ -30,18 +35,22 @@ private const val ARG_PARAM2 = "param2"
  * Use the [BlueToothFragment.newInstance] factory method to
  * create an instance of this fragment.
  */
-class BlueToothFragment : Fragment() {
+class BlueToothFragment : Fragment(), BluetoothUpdateObserver {
     // TODO: Rename and change types of parameters
     private var param1: String? = null
     private var param2: String? = null
 
     // Declare constants for the permissions request code and the permissions to request
+
+    // Centralize this and renumber
     private val REQUEST_CODE_BLUETOOTH_PERMISSIONS = 1
     private val REQUIRED_BLUETOOTH_PERMISSIONS = mutableListOf<String>()
 
     // Declare a BluetoothAdapter and a list of BluetoothDevice objects
     private var bluetoothAdapter: BluetoothAdapter? = null
     private var pairedDevices: List<BluetoothDevice> = mutableListOf()
+
+    private var permissionsGranted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,10 +59,11 @@ class BlueToothFragment : Fragment() {
             param2 = it.getString(ARG_PARAM2)
         }
 
-        // TODO - add API version code
         REQUIRED_BLUETOOTH_PERMISSIONS.add(Manifest.permission.BLUETOOTH)
         REQUIRED_BLUETOOTH_PERMISSIONS.add(Manifest.permission.BLUETOOTH_ADMIN)
-        REQUIRED_BLUETOOTH_PERMISSIONS.add(Manifest.permission.BLUETOOTH_CONNECT)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            REQUIRED_BLUETOOTH_PERMISSIONS.add(Manifest.permission.BLUETOOTH_CONNECT)
+        }
     }
 
     override fun onCreateView(
@@ -61,10 +71,7 @@ class BlueToothFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         // Inflate the layout for this fragment
-        val layout = inflater.inflate(R.layout.fragment_blue_tooth, container, false)
-        val recycler = layout.bluetoothListView
-
-        return layout.rootView
+        return inflater.inflate(R.layout.fragment_blue_tooth, container, false).rootView
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -72,6 +79,7 @@ class BlueToothFragment : Fragment() {
 
         if (hasBluetoothPermissions()) {
             // The app has the required Bluetooth permissions
+            permissionsGranted = true
             loadBluetoothList()
         } else {
             // The app does not have the required Bluetooth permissions
@@ -83,7 +91,12 @@ class BlueToothFragment : Fragment() {
     // Function to check if the app has the required Bluetooth permissions
     private fun hasBluetoothPermissions(): Boolean {
         return REQUIRED_BLUETOOTH_PERMISSIONS.all { permission ->
-            this.activity?.let { context -> ContextCompat.checkSelfPermission(context, permission) } == PackageManager.PERMISSION_GRANTED
+            this.activity?.let { context ->
+                ContextCompat.checkSelfPermission(
+                    context,
+                    permission
+                )
+            } == PackageManager.PERMISSION_GRANTED
         }
     }
 
@@ -120,30 +133,77 @@ class BlueToothFragment : Fragment() {
     private fun requestBluetoothPermissions() {
 
         this.activity?.let { activity ->
-            if (ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.BLUETOOTH)) {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(
+                    activity,
+                    Manifest.permission.BLUETOOTH
+                )
+            ) {
 // Show a message explaining why the permissions are needed
 // (e.g. "These permissions are needed to connect to Bluetooth devices")
             }
-            ActivityCompat.requestPermissions(activity,
-                REQUIRED_BLUETOOTH_PERMISSIONS.toTypedArray(), REQUEST_CODE_BLUETOOTH_PERMISSIONS)
+            ActivityCompat.requestPermissions(
+                activity,
+                REQUIRED_BLUETOOTH_PERMISSIONS.toTypedArray(), REQUEST_CODE_BLUETOOTH_PERMISSIONS
+            )
         }
 
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (hasBluetoothPermissions()) {
+            GeneralBroadcastReceiver.addBluetoothObserver(this)
+        }
+    }
+
+    override fun onPause() {
+        if (hasBluetoothPermissions()) {
+            GeneralBroadcastReceiver.removeBluetoothObserver(this)
+        }
+        super.onPause()
+    }
+
     // Override the onRequestPermissionsResult method to handle the permissions request result
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    @Deprecated("Deprecated in Java")
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
         if (requestCode == REQUEST_CODE_BLUETOOTH_PERMISSIONS) {
             if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
 // The required Bluetooth permissions have been granted
 // (e.g. start a Bluetooth connection)
+                permissionsGranted = true
                 loadBluetoothList()
             } else {
 // The required Bluetooth permissions have not been granted
 // (e.g. show a message or disable Bluetooth functionality)
-                Toast.makeText(activity, getString(R.string.bluetoothFailMessage), Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    activity,
+                    getString(R.string.bluetoothFailMessage),
+                    Toast.LENGTH_SHORT
+                ).show()
             }
         } else {
             super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    override fun onReceive(deviceAction: DeviceAction, bluetoothDevice: BluetoothDevice) {
+        if (bluetoothDevice.name == "LEXUS IS") {
+            when (deviceAction) {
+                DeviceAction.CONNECTED -> {
+                    LocalNotificationManager(requireContext()).notifyMe("Entering car")
+                }
+                DeviceAction.DISCONNECTED -> {
+                    LocalNotificationManager(requireContext()).notifyMe("Take your towel")
+                }
+                else -> {
+
+                }
+            }
         }
     }
 
