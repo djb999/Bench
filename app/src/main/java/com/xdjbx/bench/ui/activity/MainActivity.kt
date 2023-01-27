@@ -1,26 +1,22 @@
 package com.xdjbx.bench.ui.activity
 
-import android.bluetooth.BluetoothDevice
-import android.content.Intent
-import android.content.IntentFilter
-import android.net.wifi.WifiManager
+// Replace package name - com.xdjbx.bench --> com.xdjbx.bench.ui
 import android.os.Bundle
-import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.fragment.app.Fragment
 import androidx.viewpager2.widget.ViewPager2
-import com.xdjbx.bench.ui.GeneralBroadcastReceiver
 import com.xdjbx.bench.ui.adapter.BenchPagerAdapter
 import com.xdjbx.bench.ui.fragment.*
+import com.xdjbx.bench.ui.interfaces.IBaseFragment
+import com.xdjbx.bench.databinding.ActivityMainBinding
 
-// Replace package name - com.xdjbx.sensors --> com.xdjbx.bench.ui
-import com.xdjbx.sensors.databinding.ActivityMainBinding
 
-
-class MainActivity : AppCompatActivity() {
+class MainActivity : BaseActivity() {
 
     private lateinit var binding: ActivityMainBinding
+    private val baseFragmentList = mutableListOf<IBaseFragment>()
 
-    private lateinit var broadcastReceiver: GeneralBroadcastReceiver
+//    private lateinit var broadcastReceiver: GeneralBroadcastReceiver
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,9 +28,12 @@ class MainActivity : AppCompatActivity() {
 
         val benchPagerAdapter = BenchPagerAdapter(supportFragmentManager, lifecycle)
         benchPagerAdapter.addFragment(DiagnosticsFragment())
-        benchPagerAdapter.addFragment(LocationFragment())
+
+        addFragmentAndBase(LocationFragment(), benchPagerAdapter)
+
         benchPagerAdapter.addFragment(BlueToothFragment())
-        benchPagerAdapter.addFragment(WifiFragment())
+
+        addFragmentAndBase(WifiFragment(), benchPagerAdapter)
         benchPagerAdapter.addFragment(SensorsFragment())
 
         viewPager.orientation = ViewPager2.ORIENTATION_HORIZONTAL
@@ -43,30 +42,54 @@ class MainActivity : AppCompatActivity() {
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
 
         // TODO - move intent registration and monitoring to a service
-        registerIntents()
+//        registerIntents()
 
+        viewPager.registerOnPageChangeCallback(object: ViewPager2.OnPageChangeCallback() {
+            override fun onPageSelected(position: Int) {
+                super.onPageSelected(position)
+                baseFragmentList.forEach { it.resetPermissionCheckingInProcess() }
+            }
+        })
+
+    }
+
+    private fun addFragmentAndBase(
+        iBaseFragment: IBaseFragment,
+        benchPagerAdapter: BenchPagerAdapter
+    ) {
+        baseFragmentList.add(iBaseFragment)
+        benchPagerAdapter.addFragment(iBaseFragment as Fragment)
     }
 
     // TODO - move intent registration and monitoring to a service
-    fun registerIntents() {
-        // Initialize the broadcast receiver
-        broadcastReceiver = GeneralBroadcastReceiver
+//    fun registerIntents() {
+//        // Initialize the broadcast receiver
+//        broadcastReceiver = GeneralBroadcastReceiver
+//
+//        val filter = IntentFilter()
+//        filter.addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
+//        filter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED)
+//        filter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
+//        filter.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
+//
+//        // Register the broadcast receiver
+//        registerReceiver(broadcastReceiver, filter)
+//    }
 
-        val filter = IntentFilter()
-        filter.addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
-        filter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECT_REQUESTED)
-        filter.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
-        filter.addAction(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION)
+//    override fun onDestroy() {
+//        // TODO - move to service
+////        unregisterReceiver(broadcastReceiver)
+//        super.onDestroy()
+//    }
 
-        // Register the broadcast receiver
-        registerReceiver(broadcastReceiver, filter)
-    }
-
-    override fun onDestroy() {
-        // TODO - move to service
-        unregisterReceiver(broadcastReceiver)
-        super.onDestroy()
-    }
+//    override fun onRequestPermissionsResult(
+//        requestCode: Int,
+//        permissions: Array<out String>,
+//        grantResults: IntArray
+//    ) {
+//        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+//
+//    }
 
     private fun checkForPlayServices() {
 

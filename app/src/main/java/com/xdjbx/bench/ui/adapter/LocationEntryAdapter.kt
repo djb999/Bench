@@ -1,13 +1,14 @@
 package com.xdjbx.bench.ui.adapter
 
+import android.annotation.SuppressLint
 import android.view.LayoutInflater
 import android.view.ViewGroup
 import android.widget.CheckBox
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.xdjbx.bench.ui.data.GeofenceEntry
-import com.xdjbx.sensors.databinding.FragmentLocationEntryBinding
-import com.xdjbx.sensors.databinding.FragmentWifiBinding
+import com.xdjbx.bench.databinding.FragmentLocationEntryBinding
+import com.xdjbx.bench.databinding.FragmentWifiBinding
 
 
 class LocationEntryAdapter(private val locationList: ArrayList<GeofenceEntry>) : RecyclerView.Adapter<LocationEntryAdapter.ViewHolder>() {
@@ -35,8 +36,11 @@ class LocationEntryAdapter(private val locationList: ArrayList<GeofenceEntry>) :
         return locationList.size
     }
 
+    @SuppressLint("SetTextI18n")
     override fun onBindViewHolder(holder: ViewHolder, position: Int) {
-        holder.locationName.text = locationList[position].id
-        holder.locationEntered.isChecked = locationList[position].entered
+
+        val location = locationList[position]
+        holder.locationName.text = "${location.id} - (${String.format("%.4g", location.lat)},${String.format("%.4g", location.long)})"
+        holder.locationEntered.isChecked = location.entered
     }
 }

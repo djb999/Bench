@@ -20,7 +20,8 @@ import com.xdjbx.bench.domain.interfaces.WifiUpdateObserver
 import com.xdjbx.bench.ui.GeneralBroadcastReceiver
 import com.xdjbx.bench.ui.adapter.WifiConnectionAdapter
 import com.xdjbx.bench.ui.data.WifiConnection
-import com.xdjbx.sensors.R
+import com.xdjbx.bench.ui.interfaces.IBaseFragment
+import com.xdjbx.bench.R
 import kotlinx.android.synthetic.main.fragment_wifi_list.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -30,7 +31,7 @@ import kotlinx.coroutines.withContext
 /**
  * A fragment representing a list of Items.
  */
-class WifiFragment : Fragment(), WifiUpdateObserver {
+class WifiFragment : DeviceBaseFragment(), IBaseFragment, WifiUpdateObserver {
 
     private var availableNetworks: MutableList<ScanResult> = mutableListOf()
 
@@ -39,6 +40,7 @@ class WifiFragment : Fragment(), WifiUpdateObserver {
     private val REQUIRED_WIFI_PERMISSIONS = mutableListOf<String>()
     private lateinit var wifiManager: WifiManager
     private var permissionsGranted = false
+    private var checkingPermissions = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,7 +70,7 @@ class WifiFragment : Fragment(), WifiUpdateObserver {
         if (hasWifiPermissions()) {
             // The app has the required Bluetooth permissions
             permissionsGranted = true
-            GeneralBroadcastReceiver.addWifiObserver(this)
+            deviceSharedViewModel.deviceService.value?.addWifiObserver(this)
             startScanRetrieveResultsAndShow()
         } else if (permissionsRequiredByVersion()) {
             // The app does not have the required Bluetooth permissions
@@ -86,13 +88,15 @@ class WifiFragment : Fragment(), WifiUpdateObserver {
 
             withContext(Dispatchers.Main) {
                 Log.d(TAG, "XWFIX - onResume: executing showWifiList")
+                addToAllLogs("onReceive - Wifi event - received wifi list")
+
                 showWifiList(availableNetworks)
             }
         }
     }
 
     override fun onPause() {
-        GeneralBroadcastReceiver.removeWifiObserver(this)
+        deviceSharedViewModel.deviceService.value?.removeWifiObserver(this)
         super.onPause()
     }
 
@@ -110,10 +114,15 @@ class WifiFragment : Fragment(), WifiUpdateObserver {
 // Show a message explaining why the permissions are needed
 // (e.g. "These permissions are needed to scan for wifi devices")
             }
-            ActivityCompat.requestPermissions(
-                activity,
-                REQUIRED_WIFI_PERMISSIONS.toTypedArray(), REQUEST_CODE_WIFI_PERMISSIONS
-            )
+
+            if (!checkingPermissions) {
+                checkingPermissions = true
+
+                requestPermissions(
+                    REQUIRED_WIFI_PERMISSIONS.toTypedArray(), REQUEST_CODE_WIFI_PERMISSIONS
+                )
+            }
+
         }
     }
 
@@ -171,6 +180,11 @@ class WifiFragment : Fragment(), WifiUpdateObserver {
 
         val adapter = WifiConnectionAdapter(wifiList)
         wifiListRecyclerView.adapter = adapter
+    }
+
+    override fun resetPermissionCheckingInProcess() {
+        Log.d(LocationFragment.TAG, "XLOCX - WifiFragment - resetPermissionCheckingInProcess - entering")
+        checkingPermissions = false
     }
 
     private fun startScan() {

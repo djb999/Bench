@@ -16,12 +16,14 @@ import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.get
 import com.xdjbx.bench.domain.DeviceAction
 import com.xdjbx.bench.domain.interfaces.BluetoothUpdateObserver
 import com.xdjbx.bench.notification.LocalNotificationManager
 import com.xdjbx.bench.ui.GeneralBroadcastReceiver
 import com.xdjbx.bench.ui.adapter.BluetoothListAdapter
-import com.xdjbx.sensors.R
+import com.xdjbx.bench.R
 import kotlinx.android.synthetic.main.fragment_blue_tooth.*
 import kotlinx.android.synthetic.main.fragment_blue_tooth.view.*
 
@@ -35,7 +37,7 @@ private const val ARG_PARAM2 = "param2"
  * Use the [BlueToothFragment.newInstance] factory method to
  * create an instance of this fragment.
  */
-class BlueToothFragment : Fragment(), BluetoothUpdateObserver {
+class BlueToothFragment :  DeviceBaseFragment(), BluetoothUpdateObserver {
     // TODO: Rename and change types of parameters
     private var param1: String? = null
     private var param2: String? = null
@@ -141,8 +143,7 @@ class BlueToothFragment : Fragment(), BluetoothUpdateObserver {
 // Show a message explaining why the permissions are needed
 // (e.g. "These permissions are needed to connect to Bluetooth devices")
             }
-            ActivityCompat.requestPermissions(
-                activity,
+            requestPermissions(
                 REQUIRED_BLUETOOTH_PERMISSIONS.toTypedArray(), REQUEST_CODE_BLUETOOTH_PERMISSIONS
             )
         }
@@ -152,13 +153,13 @@ class BlueToothFragment : Fragment(), BluetoothUpdateObserver {
     override fun onResume() {
         super.onResume()
         if (hasBluetoothPermissions()) {
-            GeneralBroadcastReceiver.addBluetoothObserver(this)
+            deviceSharedViewModel.deviceService.value?.addBluetoothObserver(this)
         }
     }
 
     override fun onPause() {
         if (hasBluetoothPermissions()) {
-            GeneralBroadcastReceiver.removeBluetoothObserver(this)
+            deviceSharedViewModel.deviceService.value?.removeBluetoothObserver(this)
         }
         super.onPause()
     }
@@ -192,13 +193,20 @@ class BlueToothFragment : Fragment(), BluetoothUpdateObserver {
 
     @SuppressLint("MissingPermission")
     override fun onReceive(deviceAction: DeviceAction, bluetoothDevice: BluetoothDevice) {
+        addToAllLogs("onReceive - Bluetooth device name ${bluetoothDevice.name} - device action $deviceAction")
+
         if (bluetoothDevice.name == "LEXUS IS") {
             when (deviceAction) {
                 DeviceAction.CONNECTED -> {
-                    LocalNotificationManager(requireContext()).notifyMe("Entering car")
+                    val enterCarText = "Entering car"
+                    addToAllLogs("onReceive - Bluetooth event = $enterCarText")
+
+                    LocalNotificationManager(requireContext()).notifyMe(enterCarText)
                 }
                 DeviceAction.DISCONNECTED -> {
-                    LocalNotificationManager(requireContext()).notifyMe("Take your towel")
+                    val takeYourTowel = "Take your towel"
+                    LocalNotificationManager(requireContext()).notifyMe(takeYourTowel)
+                    addToAllLogs("onReceive - Bluetooth event = $takeYourTowel")
                 }
                 else -> {
 

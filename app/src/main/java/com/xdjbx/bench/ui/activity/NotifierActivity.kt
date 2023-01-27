@@ -14,7 +14,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.xdjbx.bench.notification.LocalNotificationManager
-import com.xdjbx.sensors.databinding.ActivityNotifierBinding
+import com.xdjbx.bench.databinding.ActivityNotifierBinding
 import java.util.*
 
 

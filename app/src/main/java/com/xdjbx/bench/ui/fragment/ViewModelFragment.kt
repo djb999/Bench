@@ -6,7 +6,7 @@ import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import com.xdjbx.sensors.R
+import com.xdjbx.bench.R
 
 class ViewModelFragment : Fragment() {
 

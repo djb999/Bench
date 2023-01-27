@@ -7,38 +7,38 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Looper
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ArrayAdapter
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.fragment.app.Fragment
-import com.google.android.gms.location.Geofence
-import com.google.android.gms.location.GeofencingClient
-import com.google.android.gms.location.GeofencingRequest
-import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.*
 import com.xdjbx.bench.domain.DeviceAction
 import com.xdjbx.bench.domain.interfaces.LocationUpdateObserver
 import com.xdjbx.bench.notification.LocalNotificationManager
 import com.xdjbx.bench.ui.GeneralBroadcastReceiver
 import com.xdjbx.bench.ui.adapter.LocationEntryAdapter
 import com.xdjbx.bench.ui.data.GeofenceEntry
-import com.xdjbx.sensors.R
+import com.xdjbx.bench.ui.interfaces.IBaseFragment
+import com.xdjbx.bench.R
 import kotlinx.android.synthetic.main.fragment_location_list.*
+
 
 /**
  * A fragment representing a list of Items.
  */
-class LocationFragment : Fragment(), LocationUpdateObserver {
+class LocationFragment : DeviceBaseFragment(), IBaseFragment, LocationUpdateObserver {
+
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var locationCallback: LocationCallback
 
     // TODO - move to viewModel
     private val geofenceList: MutableList<Geofence> = mutableListOf()
     private val geofenceEntryList: MutableList<GeofenceEntry> = mutableListOf()
     lateinit var geofencingClient: GeofencingClient
-    private val eventList: MutableList<String> = mutableListOf()
 
     // Declare constants for the permissions request code and the permissions to request
 
@@ -48,25 +48,111 @@ class LocationFragment : Fragment(), LocationUpdateObserver {
 
     private var permissionsGranted = false
     private var checkingPermissions = false
+    private var locationStartedUpdates = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        Log.d(TAG, "XLOCX - onCreate - entering")
+
+        REQUIRED_LOCATION_PERMISSIONS.add(Manifest.permission.ACCESS_COARSE_LOCATION)
+        REQUIRED_LOCATION_PERMISSIONS.add(Manifest.permission.ACCESS_FINE_LOCATION)
+
         if (permissionsRequiredByVersion()) {
             REQUIRED_LOCATION_PERMISSIONS.add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
-            REQUIRED_LOCATION_PERMISSIONS.add(Manifest.permission.ACCESS_FINE_LOCATION)
         }
 
         geofencingClient = LocationServices.getGeofencingClient(requireActivity())
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(requireContext())
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(locationResult: LocationResult) {
+                locationCoordTextView.text = locationResult.locations[0].let { location ->
+                    "${"%.4f".format(location.latitude)}, ${"%.4f".format(location.longitude)}"
+                }
+            }
+        }
     }
 
     private fun permissionsRequiredByVersion() = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
 
     override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
+        inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?
     ): View? {
+        Log.d(TAG, "XLOCX - onCreateView - entering")
         return inflater.inflate(R.layout.fragment_location_list, container, false).rootView
+    }
+
+    @SuppressLint("MissingPermission")
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        buttonSimulateGeofence.setOnClickListener {
+            simulateGeofenceEvent()
+        }
+
+        buttonStartLocation.setOnClickListener {
+            if (locationStartedUpdates) {
+                fusedLocationClient.removeLocationUpdates(locationCallback)
+                locationStartedUpdates = false
+                locationCoordTextView.text = ""
+                buttonStartLocation.text = "Start Location"
+            } else {
+                if (permissionsGranted) {
+                    val locationRequest = LocationRequest.create().apply {
+                        interval = 10000
+                        fastestInterval = 5000
+                        priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+                    }
+                    fusedLocationClient.requestLocationUpdates(
+                        locationRequest,
+                        locationCallback,
+                        Looper.getMainLooper()
+                    )
+                    locationStartedUpdates = true
+                    buttonStartLocation.text = "Stop Location"
+
+                } else {
+
+                    // TODO - request permissions
+//                    if (hasLocationPermissions()) {
+//
+//                    } else if (permissionsRequiredByVersion()) {
+//                        // The app does not have the required Bluetooth permissions
+//                        // Request the permissions
+//                        requestLocationPermissions()
+//                    }
+                }
+            }
+        }
+    }
+
+
+    private fun simulateGeofenceEvent() {
+
+//        val intent = Intent(Constants.GEOFENCE_TRANSITION_ACTION)
+//        val transition = Geofence.GEOFENCE_TRANSITION_ENTER // or GEOFENCE_TRANSITION_EXIT
+//        val geofenceId = "myGeofenceId"
+//        val transitionData = arrayListOf(geofenceId)
+//        intent.putExtra(EXTRA_GEOFENCE_TRANSITION_TYPE, transitionData)
+
+        val intentSender = geofencePendingIntent.intentSender
+
+// Send the intent to the service
+        intentSender.sendIntent(requireActivity(), 0, Intent(), null, null)
+
+
+//        val intent = Intent(Constants.GEOFENCE_TRANSITION_ACTION)
+//        val bundle = Bundle()
+//        bundle.putString("transition", "ENTER") // or "EXIT"
+//        bundle.putString("geofenceId", "myGeofenceId")
+//        intent.putExtra(GEOFENCE_TRANSITION_EXTRA, Geofence.GEOFENCE_TRANSITION_ENTER)
+//        val geofenceList: ArrayList<Geofence> = geofenceList.toJava(ArrayList())
+//        intent.putParcelableArrayListExtra(GEOFENCE_TRANSITION_LIST_EXTRA, ArrayList(geofenceList))
+
+//        intent.putExtra("event", bundle)
+
+//        GeneralBroadcastReceiver.onReceive(requireActivity(), intent)
     }
 
     private fun processPermissions() {
@@ -78,7 +164,7 @@ class LocationFragment : Fragment(), LocationUpdateObserver {
                 geofencingClient = LocationServices.getGeofencingClient(requireActivity())
                 // The app has the required Bluetooth permissions
                 permissionsGranted = true
-                GeneralBroadcastReceiver.addLocationObserver(this)
+                deviceSharedViewModel.deviceService.value?.addLocationObserver(this)
                 addGeofencingEntries()
             } else if (permissionsRequiredByVersion()) {
                 // The app does not have the required Bluetooth permissions
@@ -90,7 +176,18 @@ class LocationFragment : Fragment(), LocationUpdateObserver {
 
     override fun onResume() {
         super.onResume()
-        processPermissions()
+        Log.d(TAG, "XLOCX - onResume - entering")
+        if (!checkingPermissions) {
+            processPermissions()
+        } else {
+            checkingPermissions = false
+        }
+
+    }
+
+    override fun resetPermissionCheckingInProcess() {
+        Log.d(TAG, "XLOCX - LocationFragment - resetPermissionCheckingInProcess - entering")
+        checkingPermissions = false
     }
 
     private fun addGeofenceIfNotAdded(geofenceEntry: GeofenceEntry) {
@@ -109,33 +206,26 @@ class LocationFragment : Fragment(), LocationUpdateObserver {
 
         addGeofenceIfNotAdded(
             GeofenceEntry(
-                "Home",
-                "34:9:36.41",
-                "-118:42:4.70"
+                "Home", 34.1602, -118.7012
             )
         )
 
         addGeofenceIfNotAdded(
             GeofenceEntry(
-                "Gym",
-                "34:8:42.94",
-                "-118:46:1.79"
+                "Gym", 34.1457, -118.7668
             )
         )
 
         addGeofenceIfNotAdded(
             GeofenceEntry(
-                "Moms",
-                "34:8:48.30",
-                "-118:23:46.84"
+                "Moms", "34:8:48.30", "-118:23:46.84"
             )
         )
 
 
         addGeofenceIfNotAdded(
             GeofenceEntry(
-                "Starbucks",
-                34.1443046567, -118.700355766
+                "Starbucks", 34.1443046567, -118.700355766
             )
         )
 
@@ -158,10 +248,12 @@ class LocationFragment : Fragment(), LocationUpdateObserver {
                     // ...
                 }
                 addOnFailureListener {
-                    Log.d(
+                    Log.e(
                         TAG,
-                        "XLOCX - addGeofencingEntries - geofencingClient.addGeofences() - addOnFailureListener"
+                        "XLOCX - addGeofencingEntries - geofencingClient.addGeofences() - addOnFailureListener",
+                        it
                     )
+
                     // Failed to add geofences
                     // ...
 
@@ -191,34 +283,25 @@ class LocationFragment : Fragment(), LocationUpdateObserver {
         // addGeofences() and removeGeofences().
 
         val flags =
-            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_IMMUTABLE else 0)
+            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0)
         PendingIntent.getBroadcast(requireActivity(), 0, intent, flags)
     }
 
-    @SuppressLint("SetTextI18n")
-    fun addEventLogEntry(eventText: String) {
-        eventList.add(eventText)
-        val adapter = ArrayAdapter(
-            requireActivity(),
-            android.R.layout.simple_list_item_1,
-            eventList.toTypedArray()
-        )
-        event_list_view.adapter = adapter
-    }
-
     override fun onPause() {
-        GeneralBroadcastReceiver.removeLocationObserver(this)
+        Log.d(TAG, "XLOCX - onPause - entering")
+        deviceSharedViewModel.deviceService.value?.removeLocationObserver(this)
         super.onPause()
     }
 
     // Function to request the required Bluetooth permissions
     private fun requestLocationPermissions() {
 
+        Log.d(TAG, "XLOCX - requestLocationPermissions - entering")
+
         // TODO - change permissions and implement
         requireActivity().let { activity ->
             if (ActivityCompat.shouldShowRequestPermissionRationale(
-                    activity,
-                    Manifest.permission.ACCESS_FINE_LOCATION
+                    activity, Manifest.permission.ACCESS_FINE_LOCATION
                 )
             ) {
                 // TODO - add code here
@@ -227,13 +310,20 @@ class LocationFragment : Fragment(), LocationUpdateObserver {
 // (e.g. "These permissions are needed to scan for wifi devices")
             }
 
-            if (!checkingPermissions) {
-                checkingPermissions = true
-                ActivityCompat.requestPermissions(
-                    activity,
-                    REQUIRED_LOCATION_PERMISSIONS.toTypedArray(), REQUEST_CODE_LOCATION_PERMISSIONS
-                )
-            }
+            Log.d(
+                TAG,
+                "XLOCX - requestLocationPermissions - checkingPermissions: $checkingPermissions"
+            )
+
+            checkingPermissions = true
+            Log.d(
+                TAG,
+                "XLOCX - requestLocationPermissions - calling ActivityCompat.requestPermissions"
+            )
+
+            requestPermissions(
+                REQUIRED_LOCATION_PERMISSIONS.toTypedArray(), REQUEST_CODE_LOCATION_PERMISSIONS
+            )
 
         }
     }
@@ -243,8 +333,7 @@ class LocationFragment : Fragment(), LocationUpdateObserver {
         return REQUIRED_LOCATION_PERMISSIONS.all { permission ->
             this.activity?.let { context ->
                 ContextCompat.checkSelfPermission(
-                    context,
-                    permission
+                    context, permission
                 )
             } == PackageManager.PERMISSION_GRANTED
         }
@@ -253,11 +342,13 @@ class LocationFragment : Fragment(), LocationUpdateObserver {
     // Override the onRequestPermissionsResult method to handle the permissions request result
     @Deprecated("Deprecated in Java")
     override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
+        requestCode: Int, permissions: Array<out String>, grantResults: IntArray
     ) {
+        Log.d(TAG, "XLOCX - entering onRequestPermissionsResult - request Code: $requestCode")
+
         if (requestCode == REQUEST_CODE_LOCATION_PERMISSIONS) {
+            Log.d(TAG, "XLOCX - onRequestPermissionsResult - checking all granted ")
+
             if (grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
 // The required WiFi permissions have been granted
 // (e.g. start a WiFi connection)
@@ -266,16 +357,47 @@ class LocationFragment : Fragment(), LocationUpdateObserver {
             } else {
 // The required WiFi permissions have not been granted
 // (e.g. show a message or disable WiFi functionality)
+
+                val deniedPermissions = mutableListOf<String>()
+                grantResults.forEachIndexed { index, result ->
+                    if (result != PackageManager.PERMISSION_GRANTED) {
+                        deniedPermissions.add(permissions[index])
+                    }
+                }
+                if (deniedPermissions.isNotEmpty()) {
+                    deniedPermissions.forEach { permission ->
+                        addToAllLogs("onRequestPermissionsResult - permission int: ${permission} failed to grant")
+                    }
+                }
+
+
+                // TODO - if the background location permission is not granted - requestPermissions does not
+                // TODO - launch the dialog. We will need to ask the user with the shouldShowRequestPermissionRationale
+                // TODO - to select 'Allow all the time' instead of 'Allow while using the app' otherwise it geofencing calls
+                // TODO - will fail.
+
+
+//                if (permissionsRequiredByVersion()) {
+//                    if (deniedPermissions.contains(Manifest.permission.ACCESS_BACKGROUND_LOCATION)) {
+//                        val permissions = arrayOf(Manifest.permission.CAMERA)
+//                        requestPermissions(
+//                            permissions,
+//                            requestCode,
+//                            PackageManager.PERMISSION_GRANTED_AFTER_REQUEST
+//                        )
+//                    }
+//                }
+
+
                 Toast.makeText(
-                    activity,
-                    getString(R.string.wifiFailMessage),
-                    Toast.LENGTH_SHORT
+                    activity, getString(R.string.locationFailMessage), Toast.LENGTH_SHORT
                 ).show()
             }
         } else {
+            Log.d(TAG, "XLOCX - onRequestPermissionsResult - request code didn't match")
+
             super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         }
-        checkingPermissions = false
     }
 
     private fun addGeofenceEntry(geofenceEntry: GeofenceEntry): Boolean {
@@ -287,29 +409,26 @@ class LocationFragment : Fragment(), LocationUpdateObserver {
 
         val latLng = geofenceEntry.retrieveLatLong()
 
-        val geofence =
-            Geofence.Builder()
-                // Set the request ID of the geofence. This is a string to identify this
-                // geofence.
-                .setRequestId(geofenceEntry.id)
+        val geofence = Geofence.Builder()
+            // Set the request ID of the geofence. This is a string to identify this
+            // geofence.
+            .setRequestId(geofenceEntry.id)
 
-                // Set the circular region of this geofence.
-                .setCircularRegion(
-                    latLng.latitude,
-                    latLng.longitude,
-                    GEOFENCE_RADIUS_IN_METERS
-                )
+            // Set the circular region of this geofence.
+            .setCircularRegion(
+                latLng.latitude, latLng.longitude, GEOFENCE_RADIUS_IN_METERS
+            )
 
-                // Set the expiration duration of the geofence. This geofence gets automatically
-                // removed after this period of time.
-                .setExpirationDuration(GEOFENCE_EXPIRATION_IN_MILLISECONDS)
+            // Set the expiration duration of the geofence. This geofence gets automatically
+            // removed after this period of time.
+            .setExpirationDuration(GEOFENCE_EXPIRATION_IN_MILLISECONDS)
 
-                // Set the transition types of interest. Alerts are only generated for these
-                // transition. We track entry and exit transitions in this sample.
-                .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
+            // Set the transition types of interest. Alerts are only generated for these
+            // transition. We track entry and exit transitions in this sample.
+            .setTransitionTypes(Geofence.GEOFENCE_TRANSITION_ENTER or Geofence.GEOFENCE_TRANSITION_EXIT)
 
-                // Create the geofence.
-                .build()
+            // Create the geofence.
+            .build()
 
 
 
@@ -320,11 +439,6 @@ class LocationFragment : Fragment(), LocationUpdateObserver {
         }
 
         return false
-    }
-
-    private fun addToAllLogs(text: String) {
-        addEventLogEntry(text)
-        Log.d(TAG, "XLOCX - ${text}")
     }
 
     private fun showLocationList(locationEntryList: MutableList<GeofenceEntry>) {
@@ -363,6 +477,10 @@ class LocationFragment : Fragment(), LocationUpdateObserver {
         }
     }
 
+    override fun onReceiveError(exception: Exception) {
+        addToAllLogs("onReceiveError - Exception ${exception.message}")
+    }
+
     private fun updateGeofenceList(entered: Boolean, transitionGeofences: List<Geofence>) {
         transitionGeofences.forEachIndexed { index, geofence ->
             val entry = geofenceEntryList.find { geofence.requestId == it.id }
@@ -371,9 +489,15 @@ class LocationFragment : Fragment(), LocationUpdateObserver {
                 locationListRecyclerView.adapter?.notifyItemChanged(index)
             }
         }
-
     }
 
+    override fun onStop() {
+        if (locationStartedUpdates) {
+            fusedLocationClient.removeLocationUpdates(locationCallback)
+            locationStartedUpdates = false
+        }
+        super.onStop()
+    }
 
     companion object {
         val TAG = "LocationFragment"

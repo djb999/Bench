@@ -8,7 +8,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.BaseAdapter
 import android.widget.TextView
-import com.xdjbx.sensors.R
+import com.xdjbx.bench.R
 import kotlinx.android.synthetic.main.bluetooth_list_item.view.*
 
 class BluetoothListAdapter (context: Context, private val bluetoothList: List<BluetoothDevice>) : BaseAdapter() {

@@ -7,4 +7,5 @@ import com.xdjbx.bench.domain.DeviceAction
 
 interface LocationUpdateObserver {
     fun onReceive(deviceAction: DeviceAction, transitionGeofences: List<Geofence>)
+    fun onReceiveError(exception: Exception)
 }

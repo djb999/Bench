@@ -6,7 +6,7 @@ import android.widget.CheckBox
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.xdjbx.bench.ui.data.WifiConnection
-import com.xdjbx.sensors.databinding.FragmentWifiBinding
+import com.xdjbx.bench.databinding.FragmentWifiBinding
 
 
 class WifiConnectionAdapter(private val wifiList: ArrayList<WifiConnection>) : RecyclerView.Adapter<WifiConnectionAdapter.ViewHolder>() {

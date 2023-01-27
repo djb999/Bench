@@ -11,6 +11,8 @@ import android.os.Build
 import android.util.Log
 import com.google.android.gms.location.GeofenceStatusCodes
 import com.google.android.gms.location.GeofencingEvent
+import com.xdjbx.bench.core.Constants.GEOFENCE_TRANSITION_ACTION
+import com.xdjbx.bench.core.Constants.INVALID_GEOFENCE_TRANSITION
 import com.xdjbx.bench.domain.DeviceAction
 import com.xdjbx.bench.domain.interfaces.BluetoothUpdateObserver
 import com.xdjbx.bench.domain.interfaces.LocationUpdateObserver
@@ -32,6 +34,8 @@ object GeneralBroadcastReceiver : BroadcastReceiver() {
 
     @SuppressLint("LongLogTag", "MissingPermission")
     override fun onReceive(context: Context?, onReceiveIntent: Intent?) {
+
+        Log.d(TAG, "XBTHX - onReceive: ${onReceiveIntent?.action}")
 
         wifiManager =
             context?.applicationContext?.getSystemService(Context.WIFI_SERVICE) as WifiManager
@@ -70,10 +74,14 @@ object GeneralBroadcastReceiver : BroadcastReceiver() {
 
                 } else {
                     // Log the error.
+                    val exception = java.lang.RuntimeException(INVALID_GEOFENCE_TRANSITION)
                     Log.e(
-                        TAG, "Invalid transition"
+                        TAG, "Invalid transition", exception
                         )
 
+                    locationObservers.forEach {
+                        it.onReceiveError(exception)
+                    }
                 }
 
             } else {
@@ -161,7 +169,7 @@ object GeneralBroadcastReceiver : BroadcastReceiver() {
 
 
     private fun isGeofencingIntent(intent: Intent): Boolean {
-        return (intent.action.equals("android.intent.action.GEOFENCE_TRANSITION"))
+        return (intent.action.equals(GEOFENCE_TRANSITION_ACTION))
     }
 
     private fun updateBluetoothObservers(

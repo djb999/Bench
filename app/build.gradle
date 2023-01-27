@@ -6,7 +6,7 @@ plugins {
 
 
 android {
-    namespace 'com.xdjbx.sensors'
+    namespace 'com.xdjbx.bench'
     compileSdk 32
 
     buildFeatures {
@@ -14,7 +14,7 @@ android {
     }
 
     defaultConfig {
-        applicationId "com.xdjbx.sensors"
+        applicationId "com.xdjbx.bench"
         minSdk 21
         targetSdk 32
         versionCode 1
