@@ -198,7 +198,9 @@ object GeneralBroadcastReceiver : BroadcastReceiver() {
     }
 
     fun addBluetoothObserver(observer: BluetoothUpdateObserver) {
-        bluetoothObservers.add(observer)
+        if (!bluetoothObservers.contains(observer)) {
+            bluetoothObservers.add(observer)
+        }
     }
 
     fun removeBluetoothObserver(observer: BluetoothUpdateObserver) {
@@ -206,7 +208,9 @@ object GeneralBroadcastReceiver : BroadcastReceiver() {
     }
 
     fun addWifiObserver(observer: WifiUpdateObserver) {
-        wifiObservers.add(observer)
+        if (!wifiObservers.contains(observer)) {
+            wifiObservers.add(observer)
+        }
     }
 
     fun removeWifiObserver(observer: WifiUpdateObserver) {
@@ -214,7 +218,9 @@ object GeneralBroadcastReceiver : BroadcastReceiver() {
     }
 
     fun addLocationObserver(observer: LocationUpdateObserver) {
-        locationObservers.add(observer)
+        if (!locationObservers.contains(observer)) {
+            locationObservers.add(observer)
+        }
     }
 
     fun removeLocationObserver(observer: LocationUpdateObserver) {

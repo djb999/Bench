@@ -3,10 +3,9 @@ package com.xdjbx.bench.ui.fragment
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.util.Log
-import android.view.View
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
-import com.xdjbx.bench.ui.viewmodel.DeviceSharedViewModel
+import com.xdjbx.bench.viewmodel.DeviceSharedViewModel
 
 open class DeviceBaseFragment: Fragment() {
 

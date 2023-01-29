@@ -11,7 +11,7 @@ import android.widget.ArrayAdapter
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.xdjbx.bench.notification.LocalNotificationManager
-import com.xdjbx.bench.ui.viewmodel.DeviceSharedViewModel
+import com.xdjbx.bench.viewmodel.DeviceSharedViewModel
 import com.xdjbx.bench.R
 import kotlinx.android.synthetic.main.fragment_diagnostics.*
 import kotlinx.android.synthetic.main.fragment_diagnostics.view.*

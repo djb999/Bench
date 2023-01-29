@@ -16,6 +16,7 @@ import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.get
 import com.xdjbx.bench.domain.DeviceAction
@@ -24,6 +25,8 @@ import com.xdjbx.bench.notification.LocalNotificationManager
 import com.xdjbx.bench.ui.GeneralBroadcastReceiver
 import com.xdjbx.bench.ui.adapter.BluetoothListAdapter
 import com.xdjbx.bench.R
+import com.xdjbx.bench.viewmodel.BluetoothViewModel
+import com.xdjbx.bench.viewmodel.LocationViewModel
 import kotlinx.android.synthetic.main.fragment_blue_tooth.*
 import kotlinx.android.synthetic.main.fragment_blue_tooth.view.*
 
@@ -37,10 +40,12 @@ private const val ARG_PARAM2 = "param2"
  * Use the [BlueToothFragment.newInstance] factory method to
  * create an instance of this fragment.
  */
-class BlueToothFragment :  DeviceBaseFragment(), BluetoothUpdateObserver {
+class BlueToothFragment :  DeviceBaseFragment() {
     // TODO: Rename and change types of parameters
     private var param1: String? = null
     private var param2: String? = null
+
+    protected lateinit var bluetoothViewModel: BluetoothViewModel
 
     // Declare constants for the permissions request code and the permissions to request
 
@@ -66,6 +71,8 @@ class BlueToothFragment :  DeviceBaseFragment(), BluetoothUpdateObserver {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             REQUIRED_BLUETOOTH_PERMISSIONS.add(Manifest.permission.BLUETOOTH_CONNECT)
         }
+
+        bluetoothViewModel = ViewModelProvider(requireActivity()).get(BluetoothViewModel::class.java)
     }
 
     override fun onCreateView(
@@ -88,7 +95,48 @@ class BlueToothFragment :  DeviceBaseFragment(), BluetoothUpdateObserver {
             // Request the permissions
             requestBluetoothPermissions()
         }
+
+        handleViewModelServiceEvents()
     }
+
+
+    @SuppressLint("MissingPermission")
+    private fun handleViewModelServiceEvents() {
+        bluetoothViewModel.serviceReceiveException.observe(
+            this.viewLifecycleOwner
+        ) { exception ->
+            addToAllLogs("bluetooth - onReceiveError - Exception ${exception.message}")
+        }
+
+        bluetoothViewModel.receivedBluetoothData.observe(this.viewLifecycleOwner, Observer { bluetoothReceiveData ->
+
+            with(bluetoothReceiveData) {
+
+                addToAllLogs("onReceive - Bluetooth device name ${bluetoothDevice.name} - device action $deviceAction")
+
+                if (bluetoothDevice.name == "LEXUS IS") {
+                    when (deviceAction) {
+                        DeviceAction.CONNECTED -> {
+                            val enterCarText = "Entering car"
+                            addToAllLogs("onReceive - Bluetooth event = $enterCarText")
+
+                            LocalNotificationManager(requireContext()).notifyMe(enterCarText)
+                        }
+                        DeviceAction.DISCONNECTED -> {
+                            val takeYourTowel = "Take your towel"
+                            LocalNotificationManager(requireContext()).notifyMe(takeYourTowel)
+                            addToAllLogs("onReceive - Bluetooth event = $takeYourTowel")
+                        }
+                        else -> {
+
+                        }
+                    }
+                }
+            }
+
+        })
+    }
+
 
     // Function to check if the app has the required Bluetooth permissions
     private fun hasBluetoothPermissions(): Boolean {
@@ -153,14 +201,15 @@ class BlueToothFragment :  DeviceBaseFragment(), BluetoothUpdateObserver {
     override fun onResume() {
         super.onResume()
         if (hasBluetoothPermissions()) {
-            deviceSharedViewModel.deviceService.value?.addBluetoothObserver(this)
+            deviceSharedViewModel.deviceService.value?.let { bluetoothViewModel.addBluetoothObserver(it) }
         }
     }
 
     override fun onPause() {
-        if (hasBluetoothPermissions()) {
-            deviceSharedViewModel.deviceService.value?.removeBluetoothObserver(this)
-        }
+        //
+//        if (hasBluetoothPermissions()) {
+//            deviceSharedViewModel.deviceService.value?.removeBluetoothObserver(this)
+//        }
         super.onPause()
     }
 
@@ -191,29 +240,33 @@ class BlueToothFragment :  DeviceBaseFragment(), BluetoothUpdateObserver {
         }
     }
 
-    @SuppressLint("MissingPermission")
-    override fun onReceive(deviceAction: DeviceAction, bluetoothDevice: BluetoothDevice) {
-        addToAllLogs("onReceive - Bluetooth device name ${bluetoothDevice.name} - device action $deviceAction")
-
-        if (bluetoothDevice.name == "LEXUS IS") {
-            when (deviceAction) {
-                DeviceAction.CONNECTED -> {
-                    val enterCarText = "Entering car"
-                    addToAllLogs("onReceive - Bluetooth event = $enterCarText")
-
-                    LocalNotificationManager(requireContext()).notifyMe(enterCarText)
-                }
-                DeviceAction.DISCONNECTED -> {
-                    val takeYourTowel = "Take your towel"
-                    LocalNotificationManager(requireContext()).notifyMe(takeYourTowel)
-                    addToAllLogs("onReceive - Bluetooth event = $takeYourTowel")
-                }
-                else -> {
-
-                }
-            }
-        }
-    }
+//    @SuppressLint("MissingPermission")
+//    override fun onReceive(deviceAction: DeviceAction, bluetoothDevice: BluetoothDevice) {
+//        addToAllLogs("onReceive - Bluetooth device name ${bluetoothDevice.name} - device action $deviceAction")
+//
+//        if (bluetoothDevice.name == "LEXUS IS") {
+//            when (deviceAction) {
+//                DeviceAction.CONNECTED -> {
+//                    val enterCarText = "Entering car"
+//                    addToAllLogs("onReceive - Bluetooth event = $enterCarText")
+//
+//                    LocalNotificationManager(requireContext()).notifyMe(enterCarText)
+//                }
+//                DeviceAction.DISCONNECTED -> {
+//                    val takeYourTowel = "Take your towel"
+//                    LocalNotificationManager(requireContext()).notifyMe(takeYourTowel)
+//                    addToAllLogs("onReceive - Bluetooth event = $takeYourTowel")
+//                }
+//                else -> {
+//
+//                }
+//            }
+//        }
+//    }
+//
+//    override fun onReceiveError(exception: Exception) {
+//        TODO("Not yet implemented")
+//    }
 
     companion object {
         /**

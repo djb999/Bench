@@ -15,29 +15,32 @@ import android.view.ViewGroup
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Observer
+import androidx.lifecycle.ViewModelProvider
 import com.google.android.gms.location.*
+import com.xdjbx.bench.R
+import com.xdjbx.bench.core.VersionUtil
 import com.xdjbx.bench.domain.DeviceAction
-import com.xdjbx.bench.domain.interfaces.LocationUpdateObserver
 import com.xdjbx.bench.notification.LocalNotificationManager
 import com.xdjbx.bench.ui.GeneralBroadcastReceiver
 import com.xdjbx.bench.ui.adapter.LocationEntryAdapter
 import com.xdjbx.bench.ui.data.GeofenceEntry
 import com.xdjbx.bench.ui.interfaces.IBaseFragment
-import com.xdjbx.bench.R
+import com.xdjbx.bench.viewmodel.LocationViewModel
 import kotlinx.android.synthetic.main.fragment_location_list.*
 
 
 /**
  * A fragment representing a list of Items.
  */
-class LocationFragment : DeviceBaseFragment(), IBaseFragment, LocationUpdateObserver {
+class LocationFragment : DeviceBaseFragment(), IBaseFragment {
+
+    protected lateinit var locationViewModel: LocationViewModel
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
 
     // TODO - move to viewModel
-    private val geofenceList: MutableList<Geofence> = mutableListOf()
-    private val geofenceEntryList: MutableList<GeofenceEntry> = mutableListOf()
     lateinit var geofencingClient: GeofencingClient
 
     // Declare constants for the permissions request code and the permissions to request
@@ -54,6 +57,8 @@ class LocationFragment : DeviceBaseFragment(), IBaseFragment, LocationUpdateObse
         super.onCreate(savedInstanceState)
 
         Log.d(TAG, "XLOCX - onCreate - entering")
+
+        locationViewModel = ViewModelProvider(requireActivity()).get(LocationViewModel::class.java)
 
         REQUIRED_LOCATION_PERMISSIONS.add(Manifest.permission.ACCESS_COARSE_LOCATION)
         REQUIRED_LOCATION_PERMISSIONS.add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -83,7 +88,6 @@ class LocationFragment : DeviceBaseFragment(), IBaseFragment, LocationUpdateObse
         return inflater.inflate(R.layout.fragment_location_list, container, false).rootView
     }
 
-    @SuppressLint("MissingPermission")
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
@@ -92,37 +96,84 @@ class LocationFragment : DeviceBaseFragment(), IBaseFragment, LocationUpdateObse
         }
 
         buttonStartLocation.setOnClickListener {
-            if (locationStartedUpdates) {
-                fusedLocationClient.removeLocationUpdates(locationCallback)
-                locationStartedUpdates = false
-                locationCoordTextView.text = ""
-                buttonStartLocation.text = "Start Location"
-            } else {
-                if (permissionsGranted) {
-                    val locationRequest = LocationRequest.create().apply {
-                        interval = 10000
-                        fastestInterval = 5000
-                        priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+            handleLocationButtonClick()
+        }
+
+        handleViewModelServiceEvents()
+    }
+
+    private fun handleViewModelServiceEvents() {
+        locationViewModel.serviceReceiveException.observe(
+            this.viewLifecycleOwner
+        ) { exception ->
+            addToAllLogs("location - onReceiveError - Exception ${exception.message}")
+        }
+
+        locationViewModel.receivedGeofenceData.observe(
+            this.viewLifecycleOwner,
+            Observer { receivedGeofenceData ->
+
+                with(receivedGeofenceData) {
+                    when (deviceAction) {
+                        DeviceAction.ENTERED -> {
+
+                            addToAllLogs("onReceive -DeviceAction.ENTERED")
+
+                            receivedGeofenceData.transitionGeofences.forEach {
+                                // Move notifications to
+                                LocalNotificationManager(requireContext()).notifyMe("Entering ${it.requestId}")
+                                addToAllLogs("onReceive - Entering ${it.requestId}")
+                                updateGeofenceList(true, transitionGeofences)
+                            }
+                        }
+                        DeviceAction.EXITED -> {
+                            transitionGeofences.forEach {
+                                LocalNotificationManager(requireContext()).notifyMe("Exiting ${it.requestId}")
+                                addToAllLogs("onReceive - Exiting ${it.requestId}")
+                                updateGeofenceList(false, transitionGeofences)
+                            }
+                        }
+                        else -> {
+
+                        }
                     }
-                    fusedLocationClient.requestLocationUpdates(
-                        locationRequest,
-                        locationCallback,
-                        Looper.getMainLooper()
-                    )
-                    locationStartedUpdates = true
-                    buttonStartLocation.text = "Stop Location"
-
-                } else {
-
-                    // TODO - request permissions
-//                    if (hasLocationPermissions()) {
-//
-//                    } else if (permissionsRequiredByVersion()) {
-//                        // The app does not have the required Bluetooth permissions
-//                        // Request the permissions
-//                        requestLocationPermissions()
-//                    }
                 }
+
+            })
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun handleLocationButtonClick() {
+        if (locationStartedUpdates) {
+            fusedLocationClient.removeLocationUpdates(locationCallback)
+            locationStartedUpdates = false
+            locationCoordTextView.text = ""
+            buttonStartLocation.text = "Start Location"
+        } else {
+            if (permissionsGranted) {
+                val locationRequest = LocationRequest.create().apply {
+                    interval = 10000
+                    fastestInterval = 5000
+                    priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+                }
+                fusedLocationClient.requestLocationUpdates(
+                    locationRequest,
+                    locationCallback,
+                    Looper.getMainLooper()
+                )
+                locationStartedUpdates = true
+                buttonStartLocation.text = "Stop Location"
+
+            } else {
+
+                // TODO - request permissions
+                //                    if (hasLocationPermissions()) {
+                //
+                //                    } else if (permissionsRequiredByVersion()) {
+                //                        // The app does not have the required Bluetooth permissions
+                //                        // Request the permissions
+                //                        requestLocationPermissions()
+                //                    }
             }
         }
     }
@@ -158,13 +209,22 @@ class LocationFragment : DeviceBaseFragment(), IBaseFragment, LocationUpdateObse
     private fun processPermissions() {
         if (permissionsGranted) {
             addGeofencingEntries()
+            deviceSharedViewModel.deviceService.value?.let {
+                locationViewModel.addLocationObserver(
+                    it
+                )
+            }
         } else {
             if (hasLocationPermissions()) {
 
                 geofencingClient = LocationServices.getGeofencingClient(requireActivity())
                 // The app has the required Bluetooth permissions
                 permissionsGranted = true
-                deviceSharedViewModel.deviceService.value?.addLocationObserver(this)
+                deviceSharedViewModel.deviceService.value?.let {
+                    locationViewModel.addLocationObserver(
+                        it
+                    )
+                }
                 addGeofencingEntries()
             } else if (permissionsRequiredByVersion()) {
                 // The app does not have the required Bluetooth permissions
@@ -190,73 +250,42 @@ class LocationFragment : DeviceBaseFragment(), IBaseFragment, LocationUpdateObse
         checkingPermissions = false
     }
 
-    private fun addGeofenceIfNotAdded(geofenceEntry: GeofenceEntry) {
-        if (geofenceEntryList.contains(geofenceEntry).not()) {
-            Log.d(TAG, "XLOCX - addGeofenceIfNotAdded: will add entry")
-
-            geofenceEntryList.add(geofenceEntry)
-        }
-    }
-
     @SuppressLint("MissingPermission")
     private fun addGeofencingEntries() {
 
 //        GlobalScope.launch(Dispatchers.IO) {
         Log.d(TAG, "XLOCX - addGeofencingEntries: adding entries")
 
-        addGeofenceIfNotAdded(
-            GeofenceEntry(
-                "Home", 34.1602, -118.7012
-            )
-        )
+        locationViewModel.addGeofencingEntries()
+        locationViewModel.geofenceEntryList.value?.forEach { addGeofenceEntry(it) }
 
-        addGeofenceIfNotAdded(
-            GeofenceEntry(
-                "Gym", 34.1457, -118.7668
-            )
-        )
-
-        addGeofenceIfNotAdded(
-            GeofenceEntry(
-                "Moms", "34:8:48.30", "-118:23:46.84"
-            )
-        )
-
-
-        addGeofenceIfNotAdded(
-            GeofenceEntry(
-                "Starbucks", 34.1443046567, -118.700355766
-            )
-        )
-
-        geofenceList.clear()
-        geofenceEntryList.forEach { addGeofenceEntry(it) }
-
-        if (geofenceList.isNotEmpty()) {
+        if (locationViewModel.geofenceList.value?.isNotEmpty() == true) {
             Log.d(TAG, "XLOCX - addGeofencingEntries - building geofence request")
 
             val geofencingRequest = retrieveGeofenceRequest()
 
-            geofencingClient.addGeofences(geofencingRequest, geofencePendingIntent).run {
-                addOnSuccessListener {
-                    Log.d(
-                        TAG,
-                        "XLOCX - addGeofencingEntries - geofencingClient.addGeofences() - addSuccessListener"
-                    )
+            geofencingRequest?.let {
+                geofencingClient.addGeofences(it, geofencePendingIntent).run {
+                    addOnSuccessListener {
+                        Log.d(
+                            TAG,
+                            "XLOCX - addGeofencingEntries - geofencingClient.addGeofences() - addSuccessListener"
+                        )
 
-                    // Geofences added
-                    // ...
-                }
-                addOnFailureListener {
-                    Log.e(
-                        TAG,
-                        "XLOCX - addGeofencingEntries - geofencingClient.addGeofences() - addOnFailureListener",
-                        it
-                    )
+                        // Geofences added
+                        // ...
+                    }
+                    addOnFailureListener {
+                        Log.e(
+                            TAG,
+                            "XLOCX - addGeofencingEntries - geofencingClient.addGeofences() - addOnFailureListener",
+                            it
+                        )
 
-                    // Failed to add geofences
-                    // ...
+                        // Failed to add geofences
+                        // ...
 
+                    }
                 }
             }
 
@@ -265,15 +294,16 @@ class LocationFragment : DeviceBaseFragment(), IBaseFragment, LocationUpdateObse
 
 //            withContext(Dispatchers.Main) {
         Log.d(TAG, "XLOCX - onResume: will show geofencing entries soon")
-        showLocationList(geofenceEntryList)
+        locationViewModel.geofenceEntryList.value?.let { showLocationList(it) }
 //            }
 //        }
     }
 
-    private fun retrieveGeofenceRequest(): GeofencingRequest {
+    private fun retrieveGeofenceRequest(): GeofencingRequest? {
+        if (locationViewModel.geofenceList.value == null) return null
         return GeofencingRequest.Builder().apply {
             setInitialTrigger(GeofencingRequest.INITIAL_TRIGGER_ENTER)
-            addGeofences(geofenceList)
+            locationViewModel.geofenceList.value?.let { addGeofences(it) }
         }.build()
     }
 
@@ -283,13 +313,16 @@ class LocationFragment : DeviceBaseFragment(), IBaseFragment, LocationUpdateObse
         // addGeofences() and removeGeofences().
 
         val flags =
-            PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0)
+            PendingIntent.FLAG_UPDATE_CURRENT or VersionUtil.retrievePendingIntentMutabilityFlag(
+                true
+            )
         PendingIntent.getBroadcast(requireActivity(), 0, intent, flags)
     }
 
     override fun onPause() {
         Log.d(TAG, "XLOCX - onPause - entering")
-        deviceSharedViewModel.deviceService.value?.removeLocationObserver(this)
+        // TODO - figure out when to remove the observer
+//        deviceSharedViewModel.deviceService.value?.removeLocationObserver(this)
         super.onPause()
     }
 
@@ -430,11 +463,9 @@ class LocationFragment : DeviceBaseFragment(), IBaseFragment, LocationUpdateObse
             // Create the geofence.
             .build()
 
-
-
-        if (!geofenceList.contains(element = geofence)) {
+        if (locationViewModel.geofenceList.value?.contains(element = geofence) != true) {
             addToAllLogs("addGeofencingEntries - adding entry: ${geofence.requestId}")
-            geofenceList.add(geofence)
+            locationViewModel.geofenceList.value?.add(geofence)
             return true
         }
 
@@ -452,38 +483,39 @@ class LocationFragment : DeviceBaseFragment(), IBaseFragment, LocationUpdateObse
         locationListRecyclerView.adapter = adapter
     }
 
-    override fun onReceive(deviceAction: DeviceAction, transitionGeofences: List<Geofence>) {
-        when (deviceAction) {
-            DeviceAction.ENTERED -> {
-
-                addToAllLogs("onReceive -DeviceAction.ENTERED")
-
-                transitionGeofences.forEach {
-                    LocalNotificationManager(requireContext()).notifyMe("Entering ${it.requestId}")
-                    addToAllLogs("onReceive - Entering ${it.requestId}")
-                    updateGeofenceList(true, transitionGeofences)
-                }
-            }
-            DeviceAction.EXITED -> {
-                transitionGeofences.forEach {
-                    LocalNotificationManager(requireContext()).notifyMe("Exiting ${it.requestId}")
-                    addToAllLogs("onReceive - Exiting ${it.requestId}")
-                    updateGeofenceList(false, transitionGeofences)
-                }
-            }
-            else -> {
-
-            }
-        }
-    }
-
-    override fun onReceiveError(exception: Exception) {
-        addToAllLogs("onReceiveError - Exception ${exception.message}")
-    }
+//    override fun onReceive(deviceAction: DeviceAction, transitionGeofences: List<Geofence>) {
+//        when (deviceAction) {
+//            DeviceAction.ENTERED -> {
+//
+//                addToAllLogs("onReceive -DeviceAction.ENTERED")
+//
+//                transitionGeofences.forEach {
+//                    LocalNotificationManager(requireContext()).notifyMe("Entering ${it.requestId}")
+//                    addToAllLogs("onReceive - Entering ${it.requestId}")
+//                    updateGeofenceList(true, transitionGeofences)
+//                }
+//            }
+//            DeviceAction.EXITED -> {
+//                transitionGeofences.forEach {
+//                    LocalNotificationManager(requireContext()).notifyMe("Exiting ${it.requestId}")
+//                    addToAllLogs("onReceive - Exiting ${it.requestId}")
+//                    updateGeofenceList(false, transitionGeofences)
+//                }
+//            }
+//            else -> {
+//
+//            }
+//        }
+//    }
+//
+//    override fun onReceiveError(exception: Exception) {
+//        addToAllLogs("onReceiveError - Exception ${exception.message}")
+//    }
 
     private fun updateGeofenceList(entered: Boolean, transitionGeofences: List<Geofence>) {
         transitionGeofences.forEachIndexed { index, geofence ->
-            val entry = geofenceEntryList.find { geofence.requestId == it.id }
+            val entry =
+                locationViewModel.geofenceEntryList.value?.find { geofence.requestId == it.id }
             entry?.let {
                 it.entered = entered
                 locationListRecyclerView.adapter?.notifyItemChanged(index)

@@ -1,4 +1,4 @@
-package com.xdjbx.bench.ui.viewmodel
+package com.xdjbx.bench.viewmodel
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData

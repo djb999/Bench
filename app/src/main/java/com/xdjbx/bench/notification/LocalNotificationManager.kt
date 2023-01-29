@@ -10,6 +10,7 @@ import android.os.Build
 import android.speech.tts.TextToSpeech
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.xdjbx.bench.core.VersionUtil.retrievePendingIntentMutabilityFlag
 import com.xdjbx.bench.ui.activity.NotifierActivity
 import java.io.File
 
@@ -43,7 +44,7 @@ class LocalNotificationManager(val context: Context): TextToSpeech.OnInitListene
         notificationIntent.putExtra(messageKey, message)
 
         // TODO - Implement S+ Api version 31 code check
-        val notificationPendingIntent = PendingIntent.getActivity(context, 0, notificationIntent, PendingIntent.FLAG_MUTABLE)
+        val notificationPendingIntent = PendingIntent.getActivity(context, 0, notificationIntent, retrievePendingIntentMutabilityFlag(true))
 
         // TODO - create/select small icon
         // TODO - select title
